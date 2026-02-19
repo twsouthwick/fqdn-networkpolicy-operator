@@ -91,8 +91,8 @@ jobs:
           name: operator-config
           path: src/Operator/config/
 
-      - name: Setup minikube
-        uses: medyagh/setup-minikube@v0.0.21
+      - name: Setup kind
+        uses: helm/kind-action@v1
 
       - name: Run integration tests
         run: |

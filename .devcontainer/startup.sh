@@ -1,11 +1,8 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Install dotnet tools if not already installed
-if ! command -v kubeops &> /dev/null; then
-    echo "Installing KubeOps CLI..."
-    dotnet tool install --global KubeOps.Cli
-fi
+dotnet tool restore
 
 # Wait for Docker to be ready
 echo "Waiting for Docker..."
@@ -14,15 +11,20 @@ while ! docker info >/dev/null 2>&1; do
 done
 echo "Docker is ready"
 
-# Check if minikube is already running
-if minikube status >/dev/null 2>&1; then
-    echo "Minikube is already running"
-else
-    echo "Starting minikube..."
-    minikube start --driver=docker --memory=4096 --cpus=2
-fi
+# Ensure the persistent kind cluster is running
+echo "Starting kind cluster..."
+kind get clusters 2>/dev/null | grep -q '^fqdn-operator$' || kind create cluster --name fqdn-operator --wait 60s
+kind export kubeconfig --name fqdn-operator
+kubectl cluster-info --context kind-fqdn-operator
+echo "kind cluster ready"
 
-echo "Minikube is ready!"
-kubectl cluster-info
+dotnet restore
+
+# Build the fqdn-provider Docker image and load it into the kind cluster
+echo "Building fqdn-provider image..."
+docker build -t fqdn-provider:latest /workspaces/fqdn-networkpolicy-operator/samples/fqdn-provider
+echo "Loading fqdn-provider image into kind cluster..."
+kind load docker-image fqdn-provider:latest --name fqdn-operator
+echo "fqdn-provider image ready"
 
 alias k=kubectl

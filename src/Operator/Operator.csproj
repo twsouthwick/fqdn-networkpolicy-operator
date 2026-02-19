@@ -8,6 +8,7 @@
 
   <PropertyGroup>
     <KubeOpsCli>dotnet kubeops</KubeOpsCli>
+    <GenerateOperatorResources>true</GenerateOperatorResources>
     <KubeOpsConfigOut>$(ArtifactsPath)\k8s</KubeOpsConfigOut>
   </PropertyGroup>
 

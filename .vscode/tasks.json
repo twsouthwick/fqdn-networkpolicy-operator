@@ -72,6 +72,25 @@
             "group": "build"
         },
 
+        // ── kind cluster ────────────────────────────────────────────────────
+
+        {
+            "label": "kind: create cluster",
+            "detail": "Create a local kind Kubernetes cluster named fqdn-operator (no-op if already running)",
+            "type": "shell",
+            "command": "kind get clusters 2>/dev/null | grep -q '^fqdn-operator$' || kind create cluster --name fqdn-operator --wait 60s",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "kind: delete cluster",
+            "detail": "Delete the local kind Kubernetes cluster",
+            "type": "shell",
+            "command": "kind delete cluster --name fqdn-operator",
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+
         // ── Sample fqdn-provider ─────────────────────────────────────────────
 
         {
@@ -83,10 +102,10 @@
             "presentation": { "reveal": "always", "panel": "shared" }
         },
         {
-            "label": "sample: load image into minikube",
-            "detail": "Load the fqdn-provider image into the minikube cache",
+            "label": "sample: load image into kind",
+            "detail": "Load the fqdn-provider image into the kind cluster",
             "type": "shell",
-            "command": "minikube image load fqdn-provider:latest",
+            "command": "kind load docker-image fqdn-provider:latest --name fqdn-operator",
             "dependsOn": ["sample: build image"],
             "dependsOrder": "sequence",
             "problemMatcher": [],
@@ -97,7 +116,7 @@
             "detail": "Apply the fqdn-provider Deployment, Service, and provider CR",
             "type": "shell",
             "command": "kubectl apply -f ${workspaceFolder}/samples/fqdn-provider/deployment.yaml",
-            "dependsOn": ["sample: load image into minikube"],
+            "dependsOn": ["sample: load image into kind"],
             "dependsOrder": "sequence",
             "problemMatcher": [],
             "presentation": { "reveal": "always", "panel": "shared" }
@@ -106,7 +125,7 @@
             "label": "sample: teardown",
             "detail": "Remove the fqdn-provider Deployment, Service, and provider CR from the cluster",
             "type": "shell",
-            "command": "kubectl delete -f ${workspaceFolder}/samples/fqdn-provider/deployment.yaml --ignore-not-found",
+            "command": "kubectl delete -f ${workspaceFolder}/samples/fqdn-provider/deployment.yaml --ignore-not-found --wait=false",
             "problemMatcher": [],
             "presentation": { "reveal": "always", "panel": "shared" }
         },
@@ -166,7 +185,7 @@
         },
         {
             "label": "stop sample debug",
-            "detail": "Stop port-forward, remove hosts entry, and tear down sample from the cluster",
+            "detail": "Stop port-forward, remove hosts entry, and tear down sample (cluster kept running)",
             "dependsOn": ["debug: stop port-forward", "debug: remove hosts entry", "sample: teardown"],
             "dependsOrder": "sequence",
             "problemMatcher": []

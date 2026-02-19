@@ -8,7 +8,7 @@
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
-			"helm": "3.18.0" // There is an issue with the latest helm version, so we are using 3.18.0
+			"minikube": "none"
 		},
 		"ghcr.io/audacioustux/devcontainers/k9s:1": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
