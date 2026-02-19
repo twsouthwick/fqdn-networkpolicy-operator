@@ -14,6 +14,7 @@ public partial class V1FqdnProviderEntity : CustomKubernetesEntity<V1FqdnProvide
 
         public int Port { get; set; } = 7942;
 
+        public string Path { get; set; } = "/fqdnlist";
     }
 
     public class EntityStatus

@@ -24,3 +24,5 @@ fi
 
 echo "Minikube is ready!"
 kubectl cluster-info
+
+alias k=kubectl

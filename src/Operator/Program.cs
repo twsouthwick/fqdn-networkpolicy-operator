@@ -5,6 +5,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.SetMinimumLevel(LogLevel.Trace);
 
 builder.Services
+    .AddHttpClient()
     .AddKubernetesOperator()
     .RegisterComponents();
 

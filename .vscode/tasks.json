@@ -1,6 +1,9 @@
 {
     "version": "2.0.0",
     "tasks": [
+
+        // ── Build ────────────────────────────────────────────────────────────
+
         {
             "label": "build",
             "command": "dotnet",
@@ -36,38 +39,137 @@
                 "panel": "new"
             }
         },
+
+        // ── Operator cluster setup ───────────────────────────────────────────
+
         {
             "label": "apply-crd",
             "type": "shell",
-            "command": "kubectl apply -f ${workspaceFolder}/src/Operator/config/sshkeys_com_github_twsouthwick_sshkeygen.yaml",
+            "command": "kubectl apply -f ${workspaceFolder}/artifacts/k8s/providers_com_github_twsouthwick_fqdnnetpol.yaml",
             "problemMatcher": [],
-            "presentation": {
-                "reveal": "silent",
-                "panel": "shared"
-            }
+            "presentation": { "reveal": "silent", "panel": "shared" }
         },
         {
             "label": "apply-rbac",
             "type": "shell",
-            "command": "kubectl apply -f ${workspaceFolder}/src/Operator/config/operator-role.yaml -f ${workspaceFolder}/src/Operator/config/operator-role-binding.yaml",
+            "command": "kubectl apply -f ${workspaceFolder}/artifacts/k8s/operator-role.yaml -f ${workspaceFolder}/artifacts/k8s/operator-role-binding.yaml",
             "problemMatcher": [],
-            "presentation": {
-                "reveal": "silent",
-                "panel": "shared"
-            }
+            "presentation": { "reveal": "silent", "panel": "shared" }
         },
         {
             "label": "setup-operator",
-            "dependsOn": ["apply-crd"],
-            "dependsOrder": "sequence",
+            "detail": "Apply CRD and RBAC to the cluster",
+            "dependsOn": ["apply-crd", "apply-rbac"],
+            "dependsOrder": "parallel",
             "problemMatcher": []
         },
         {
             "label": "build-and-setup",
+            "detail": "Build the operator and apply cluster prerequisites",
             "dependsOn": ["build", "setup-operator"],
             "dependsOrder": "sequence",
             "problemMatcher": [],
             "group": "build"
+        },
+
+        // ── Sample fqdn-provider ─────────────────────────────────────────────
+
+        {
+            "label": "sample: build image",
+            "detail": "Build the fqdn-provider Docker image",
+            "type": "shell",
+            "command": "docker build -t fqdn-provider:latest ${workspaceFolder}/samples/fqdn-provider",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "sample: load image into minikube",
+            "detail": "Load the fqdn-provider image into the minikube cache",
+            "type": "shell",
+            "command": "minikube image load fqdn-provider:latest",
+            "dependsOn": ["sample: build image"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "sample: deploy",
+            "detail": "Apply the fqdn-provider Deployment, Service, and provider CR",
+            "type": "shell",
+            "command": "kubectl apply -f ${workspaceFolder}/samples/fqdn-provider/deployment.yaml",
+            "dependsOn": ["sample: load image into minikube"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            "label": "sample: teardown",
+            "detail": "Remove the fqdn-provider Deployment, Service, and provider CR from the cluster",
+            "type": "shell",
+            "command": "kubectl delete -f ${workspaceFolder}/samples/fqdn-provider/deployment.yaml --ignore-not-found",
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+
+        // ── Local debug helpers ──────────────────────────────────────────────
+
+        {
+            "label": "debug: add hosts entry",
+            "detail": "Map fqdn-provider.default to 127.0.0.1 so the operator can reach the port-forward",
+            "type": "shell",
+            "command": "grep -qF 'fqdn-provider.default' /etc/hosts || echo '127.0.0.1 fqdn-provider.default' | sudo tee -a /etc/hosts",
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+        {
+            "label": "debug: remove hosts entry",
+            "detail": "Remove the fqdn-provider.default entry from /etc/hosts",
+            "type": "shell",
+            "command": "grep -vF 'fqdn-provider.default' /etc/hosts | sudo tee /etc/hosts.tmp && sudo cp /etc/hosts.tmp /etc/hosts && sudo rm /etc/hosts.tmp || true",
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+        {
+            "label": "debug: port-forward provider",
+            "detail": "Wait for the fqdn-provider pod then port-forward svc/fqdn-provider to localhost:7942",
+            "type": "shell",
+            "command": "kubectl wait --for=condition=available deployment/fqdn-provider --timeout=60s && kubectl port-forward svc/fqdn-provider 7942:7942",
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [{ "regexp": "^$", "file": 1, "location": 2, "message": 3 }],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Forwarding from",
+                    "endsPattern": "^Forwarding from"
+                }
+            },
+            "presentation": { "reveal": "silent", "panel": "dedicated", "showReuseMessage": false }
+        },
+        {
+            "label": "debug: stop port-forward",
+            "detail": "Kill any kubectl port-forward processes for fqdn-provider",
+            "type": "shell",
+            "command": "pkill -f 'kubectl port-forward svc/fqdn-provider' || true",
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+
+        // ── Composite ────────────────────────────────────────────────────────
+
+        {
+            "label": "start sample debug",
+            "detail": "Build, deploy sample, add hosts entry and start port-forward",
+            "dependsOn": ["build-and-setup", "sample: deploy", "debug: add hosts entry", "debug: port-forward provider"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "stop sample debug",
+            "detail": "Stop port-forward, remove hosts entry, and tear down sample from the cluster",
+            "dependsOn": ["debug: stop port-forward", "debug: remove hosts entry", "sample: teardown"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
         }
     ]
 }

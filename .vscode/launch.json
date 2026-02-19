@@ -2,25 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Operator (with CRD setup)",
+            "name": "Debug Operator",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build-and-setup",
-            "program": "${workspaceFolder}/artifacts/bin/Operator/debug/Operator.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/src/Operator",
-            "stopAtEntry": false,
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "DOTNET_ENVIRONMENT": "Development"
-            },
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Debug Operator (quick)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
+            "preLaunchTask": "start sample debug",
+            "postDebugTask": "stop sample debug",
             "program": "${workspaceFolder}/artifacts/bin/Operator/debug/Operator.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/Operator",
