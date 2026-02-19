@@ -1,0 +1,40 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Operator (with CRD setup)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-and-setup",
+            "program": "${workspaceFolder}/artifacts/bin/Operator/debug/Operator.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/Operator",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Operator (quick)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/artifacts/bin/Operator/debug/Operator.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/Operator",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Attach to Process",
+            "type": "coreclr",
+            "request": "attach"
+        }
+    ]
+}

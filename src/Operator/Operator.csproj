@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <KubeOpsCli>dotnet kubeops</KubeOpsCli>
+    <GenerateOperatorResources>true</GenerateOperatorResources>
+    <KubeOpsConfigOut>$(ArtifactsPath)\k8s</KubeOpsConfigOut>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+    <ContainerRepository>fqdn-networkpolicy-operator</ContainerRepository>
+    <ContainerImageTag>latest</ContainerImageTag>
+    <ContainerUser>app</ContainerUser>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="KubeOps.Generator">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="KubeOps.Operator" />
+  </ItemGroup>
+
+</Project>

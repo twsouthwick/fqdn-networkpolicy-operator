@@ -1,0 +1,73 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/src/Operator/Operator.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary;ForceNoAlign"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "test",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "test",
+                "${workspaceFolder}/test/Operator.IntegrationTests/Operator.IntegrationTests.csproj",
+                "--no-restore"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "apply-crd",
+            "type": "shell",
+            "command": "kubectl apply -f ${workspaceFolder}/src/Operator/config/sshkeys_com_github_twsouthwick_sshkeygen.yaml",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "apply-rbac",
+            "type": "shell",
+            "command": "kubectl apply -f ${workspaceFolder}/src/Operator/config/operator-role.yaml -f ${workspaceFolder}/src/Operator/config/operator-role-binding.yaml",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "setup-operator",
+            "dependsOn": ["apply-crd"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        },
+        {
+            "label": "build-and-setup",
+            "dependsOn": ["build", "setup-operator"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}

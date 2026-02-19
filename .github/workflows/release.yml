@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  IMAGE_NAME: ssh-operator
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Build container image
+        run: |
+          dotnet publish src/Operator/Operator.csproj \
+            --os linux --arch x64 \
+            -c Release \
+            /t:PublishContainer \
+            -p:Version=${{ steps.version.outputs.version }} \
+            -p:ContainerImageTag=${{ steps.version.outputs.version }} \
+            -p:ContainerArchiveOutputPath=${{ github.workspace }}/artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
+
+      - name: Upload container image
+        uses: actions/upload-artifact@v6
+        with:
+          name: container-image
+          path: artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download container image
+        uses: actions/download-artifact@v7
+        with:
+          name: container-image
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ secrets.AZURE_ACR_LOGIN_SERVER }}
+
+      - name: Load and push container image
+        run: |
+          docker load -i ${{ env.IMAGE_NAME }}.tar.gz
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }} ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }} ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }} ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+          docker push ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ secrets.AZURE_ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs: [build, docker-push]
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.build.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}

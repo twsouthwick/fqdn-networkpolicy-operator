@@ -1,0 +1,84 @@
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get latest version tag
+        id: get-version
+        run: |
+          # Get the latest version tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          echo "Latest tag: $LATEST_TAG"
+          echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: next-version
+        run: |
+          LATEST="${{ steps.get-version.outputs.latest }}"
+          # Strip the 'v' prefix
+          VERSION=${LATEST#v}
+          
+          # Split into major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Bump based on input
+          case "${{ inputs.bump }}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Next version: $NEXT_VERSION"
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.next-version.outputs.version }}" -m "Release ${{ steps.next-version.outputs.version }}"
+          git push origin "${{ steps.next-version.outputs.version }}"
+
+      - name: Summary
+        run: |
+          echo "## Release Triggered 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous version:** ${{ steps.get-version.outputs.latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New version:** ${{ steps.next-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bump type:** ${{ inputs.bump }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The [release workflow](${{ github.server_url }}/${{ github.repository }}/actions/workflows/release.yml) will now build and publish the container image." >> $GITHUB_STEP_SUMMARY

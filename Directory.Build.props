@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+  <!-- Version properties - override via CLI: -p:Version=1.0.0 -->
+  <PropertyGroup>
+    <Version>0.0.0-local</Version>
+    <!-- AssemblyVersion/FileVersion only support major.minor.build.revision format -->
+    <VersionPrefix>$([System.Text.RegularExpressions.Regex]::Match($(Version), '^\d+\.\d+\.\d+').Value)</VersionPrefix>
+    <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
+    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+  </PropertyGroup>
+</Project>

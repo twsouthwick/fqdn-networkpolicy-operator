@@ -1,0 +1,11 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "dotnet build": true,
+        "dotnet restore": true,
+        "dotnet test": true,
+        "az account show": true,
+        "az acr show": true,
+        "gh secret list": true,
+        "git push": true
+    }
+}
