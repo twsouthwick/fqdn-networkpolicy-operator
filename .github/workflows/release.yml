@@ -6,7 +6,7 @@ on:
       - 'v*.*.*'
 
 env:
-  IMAGE_NAME: ssh-operator
+  IMAGE_NAME: fqdn-networkpolicy-operator
 
 jobs:
   build:
@@ -51,6 +51,7 @@ jobs:
         with:
           name: container-image
           path: artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
+          retention-days: 1
 
     outputs:
       version: ${{ steps.version.outputs.version }}

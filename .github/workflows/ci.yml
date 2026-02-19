@@ -50,6 +50,7 @@ jobs:
         with:
           name: test-binaries-${{ matrix.configuration }}
           path: artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/
+          retention-days: 1
 
       - name: Upload operator config
         if: matrix.configuration == 'release'
@@ -57,6 +58,7 @@ jobs:
         with:
           name: operator-config
           path: src/Operator/config/
+          retention-days: 1
 
       - name: Upload container image
         if: matrix.configuration == 'release'
@@ -64,6 +66,7 @@ jobs:
         with:
           name: container-image
           path: artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
+          retention-days: 1
 
   integration-tests:
     runs-on: ubuntu-latest
