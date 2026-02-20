@@ -8,6 +8,12 @@ namespace Swick.FqdnNetworkPolicyOperator.Entities;
 [KubernetesEntity(Group = Constants.ApiGroup, ApiVersion = Constants.ApiVersion, Kind = Constants.Kind, PluralName = "fqdnnetworkpolicies")]
 public partial class V1FqdnNetworkPolicyEntity : CustomKubernetesEntity<V1FqdnNetworkPolicyEntity.EntitySpec, V1FqdnNetworkPolicyEntity.EntityStatus>
 {
+    public V1FqdnNetworkPolicyEntity()
+    {
+        ApiVersion = $"{Constants.ApiGroup}/{Constants.ApiVersion}";
+        Kind = Constants.Kind;
+    }
+
     public class EntitySpec
     {
         public EgressRule[] Egress { get; set; } = null!;

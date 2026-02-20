@@ -22,4 +22,10 @@
     <ProjectReference Include="..\..\src\Operator\Operator.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\artifacts\k8s\fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml"
+             CopyToOutputDirectory="PreserveNewest"
+             Link="fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml" />
+  </ItemGroup>
+
 </Project>

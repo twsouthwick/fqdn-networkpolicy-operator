@@ -62,20 +62,7 @@ public class KubernetesClusterFixture : IAsyncLifetime
 
     private static async Task ApplyCrdsAsync()
     {
-        // Find the workspace root by looking for the solution file
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "fqdn-networkpolicy-operator.slnx")))
-        {
-            dir = dir.Parent;
-        }
-
-        if (dir == null)
-        {
-            throw new InvalidOperationException("Could not find workspace root (fqdn-networkpolicy-operator.slnx)");
-        }
-
-        var crdPath = Path.Combine(dir.FullName, "artifacts", "k8s", 
-            "fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml");
+        var crdPath = Path.Combine(AppContext.BaseDirectory, "fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml");
 
         if (!File.Exists(crdPath))
         {

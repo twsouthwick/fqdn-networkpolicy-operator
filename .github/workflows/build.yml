@@ -112,20 +112,11 @@ jobs:
         configuration: [debug, release]
 
     steps:
-      - uses: actions/checkout@v6
-
       - name: Restore test binaries
         uses: actions/cache/restore@v4
         with:
           key: test-binaries-${{ matrix.configuration }}-${{ github.run_id }}
           path: artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/
-          fail-on-cache-miss: true
-
-      - name: Restore operator config
-        uses: actions/cache/restore@v4
-        with:
-          key: operator-config-${{ github.run_id }}
-          path: artifacts/k8s/
           fail-on-cache-miss: true
 
       - name: Setup kind

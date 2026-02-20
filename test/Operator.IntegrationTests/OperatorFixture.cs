@@ -35,6 +35,7 @@ public class OperatorFixture : IAsyncDisposable
         builder.Logging.AddConsole();
 
         builder.Services
+            .AddHttpClient()
             .AddKubernetesOperator()
             .RegisterComponents();
 
