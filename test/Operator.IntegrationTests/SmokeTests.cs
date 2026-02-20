@@ -104,7 +104,7 @@ public class SmokeTests(KubernetesClusterFixture cluster) : IAsyncLifetime
 
         // Assert: status is updated to Ready
         var updatedCr = await _operator.WaitForConditionAsync(
-            () => cluster.Client.CustomObjects.GetNamespacedCustomObjectAsync<V1FqdnNetworkPolicyEntity>(
+            async () => (V1FqdnNetworkPolicyEntity?)await cluster.Client.CustomObjects.GetNamespacedCustomObjectAsync<V1FqdnNetworkPolicyEntity>(
                 Group, ApiVersion, cluster.TestNamespace, PluralName, crName,
                 cancellationToken: ct),
             entity => entity?.Status.Ready == true,

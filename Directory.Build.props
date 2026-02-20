@@ -3,7 +3,10 @@
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
   </PropertyGroup>
 
-  <!-- Version properties - override via CLI: -p:Version=1.0.0 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
   <PropertyGroup>
     <Version>0.0.0-local</Version>
     <!-- AssemblyVersion/FileVersion only support major.minor.build.revision format -->
