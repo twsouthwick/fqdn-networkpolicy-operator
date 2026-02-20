@@ -37,13 +37,64 @@ flowchart TD
 
 ## Installation
 
-Apply the CRD and RBAC manifests to your cluster:
+### Helm (recommended)
+
+The chart is published to GHCR as an OCI artifact. Install the latest version with:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/twsouthwick/fqdn-networkpolicy-operator/main/artifacts/k8s/fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml
-kubectl apply -f https://raw.githubusercontent.com/twsouthwick/fqdn-networkpolicy-operator/main/artifacts/k8s/operator-role.yaml \
-              -f https://raw.githubusercontent.com/twsouthwick/fqdn-networkpolicy-operator/main/artifacts/k8s/operator-role-binding.yaml
-kubectl apply -f https://raw.githubusercontent.com/twsouthwick/fqdn-networkpolicy-operator/main/artifacts/k8s/deployment.yaml
+helm install fqdn-networkpolicy-operator \
+  oci://ghcr.io/twsouthwick/charts/fqdn-networkpolicy-operator \
+  --namespace fqdn-networkpolicy-operator \
+  --create-namespace
+```
+
+The CRD is bundled in the chart's `crds/` directory and is installed automatically.
+
+To install a specific version:
+
+```bash
+helm install fqdn-networkpolicy-operator \
+  oci://ghcr.io/twsouthwick/charts/fqdn-networkpolicy-operator \
+  --version <semVer> \
+  --namespace fqdn-networkpolicy-operator \
+  --create-namespace
+```
+
+#### Configurable values
+
+| Value | Default | Description |
+|---|---|---|
+| `replicaCount` | `1` | Number of operator replicas. |
+| `image.repository` | `ghcr.io/twsouthwick/fqdn-networkpolicy-operator` | Container image repository. |
+| `image.tag` | *(chart appVersion)* | Image tag; defaults to the chart's `appVersion`. |
+| `image.pullPolicy` | `IfNotPresent` | Image pull policy. |
+| `resources.limits.cpu` | `100m` | CPU limit. |
+| `resources.limits.memory` | `128Mi` | Memory limit. |
+| `resources.requests.cpu` | `100m` | CPU request. |
+| `resources.requests.memory` | `64Mi` | Memory request. |
+| `nameOverride` | `""` | Override the chart name portion of resource names. |
+| `fullnameOverride` | `""` | Fully override resource names. |
+
+Pass overrides with `--set` or a custom `values.yaml`:
+
+```bash
+helm install fqdn-networkpolicy-operator \
+  oci://ghcr.io/twsouthwick/charts/fqdn-networkpolicy-operator \
+  --namespace fqdn-networkpolicy-operator \
+  --create-namespace \
+  --set resources.limits.memory=256Mi
+```
+
+#### Upgrade and uninstall
+
+```bash
+# Upgrade to a newer chart version
+helm upgrade fqdn-networkpolicy-operator \
+  oci://ghcr.io/twsouthwick/charts/fqdn-networkpolicy-operator \
+  --namespace fqdn-networkpolicy-operator
+
+# Uninstall (CRD and CRs are not removed automatically)
+helm uninstall fqdn-networkpolicy-operator --namespace fqdn-networkpolicy-operator
 ```
 
 ## Custom Resource: `FqdnNetworkPolicy`
