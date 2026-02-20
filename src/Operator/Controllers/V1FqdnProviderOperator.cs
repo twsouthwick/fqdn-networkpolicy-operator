@@ -7,6 +7,7 @@ using KubeOps.Abstractions.Rbac;
 using KubeOps.Abstractions.Reconciliation;
 using KubeOps.Abstractions.Reconciliation.Controller;
 using KubeOps.KubernetesClient;
+using KubeOps.Operator.Serialization;
 using Swick.FqdnNetworkPolicyOperator.Entities;
 
 namespace Swick.FqdnNetworkPolicyOperator.Controllers;
@@ -25,33 +26,55 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
     {
         try
         {
-            var ipNetworks = await GetPeersAsync(entity, cancellationToken).ToListAsync(cancellationToken);
+            var egressRules = await GetPeersAsync(entity, cancellationToken).ToListAsync(cancellationToken);
 
-            await ApplyNetworkPolicyAsync(entity, ipNetworks, cancellationToken);
+            var changed = await ApplyNetworkPolicyAsync(entity, egressRules, cancellationToken);
 
-            entity.Status.IpCount = ipNetworks.Count;
-            entity.Status.LastUpdated = DateTimeOffset.UtcNow;
-            
-            await client.UpdateStatusAsync(entity, cancellationToken);
+            entity.Status.Ready = true;
+            entity.Status.IpCount = egressRules.Sum(r => r.To?.Count ?? 0);
+            entity.Status.DomainCount = entity.Spec.Egress
+                .SelectMany(e => e.Domains ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            entity.Status.LastReconciled = DateTimeOffset.UtcNow;
+            if (changed)
+            {
+                entity.Status.LastModified = DateTimeOffset.UtcNow;
+            }
+            entity.Status.Message = "Success";
 
-            return ReconciliationResult<V1FqdnProviderEntity>.Success(entity, TimeSpan.FromSeconds(30));
+            var updatedEntity = await client.UpdateStatusAsync(entity, cancellationToken);
+
+            return ReconciliationResult<V1FqdnProviderEntity>.Success(updatedEntity, TimeSpan.FromSeconds(30));
         }
         catch (Exception e)
         {
+            entity.Status.Ready = false;
+            entity.Status.Message = "Error: " + e.Message;
+
+            try
+            {
+                entity = await client.UpdateStatusAsync(entity, cancellationToken);
+            }
+            catch
+            {
+                /* best effort */
+            }
+
             logger.LogError(e, "Error reconciling provider {Name}", entity.Name());
             return ReconciliationResult<V1FqdnProviderEntity>.Failure(entity, e.Message, e, TimeSpan.FromMinutes(2));
         }
     }
 
-    private async Task ApplyNetworkPolicyAsync(V1FqdnProviderEntity entity, List<V1NetworkPolicyEgressRule> ipNetworkRules, CancellationToken cancellationToken)
+    private async Task<bool> ApplyNetworkPolicyAsync(V1FqdnProviderEntity entity, List<V1NetworkPolicyEgressRule> egressRules, CancellationToken cancellationToken)
     {
         var policyName = NetworkPolicyName(entity);
 
-        var spec = entity.Spec.Policy;
+        var spec = GetNetworkPolicySpec(entity);
 
-        spec.Egress = spec.Egress is null 
-            ? ipNetworkRules
-            : [.. spec.Egress, .. ipNetworkRules];
+        spec.Egress = spec.Egress is null
+            ? egressRules
+            : [.. spec.Egress, .. egressRules];
 
         var policy = new V1NetworkPolicy
         {
@@ -73,71 +96,90 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
             Spec = spec,
         };
 
-        await client.SaveAsync(policy, cancellationToken);
+        var existing = await client.GetAsync<V1NetworkPolicy>(policyName, entity.Namespace(), cancellationToken);
 
-        logger.LogInformation("Saved NetworkPolicy {PolicyName} with {IpCount} IP block(s) for provider {Name}", policyName, ipNetworkRules.Count, entity.Name());
+        if (existing is not null)
+        {
+            var existingSpecJson = KubernetesJsonSerializer.Serialize(existing.Spec);
+            var newSpecJson = KubernetesJsonSerializer.Serialize(spec);
+
+            if (existingSpecJson == newSpecJson)
+            {
+                logger.LogDebug("NetworkPolicy {PolicyName} is unchanged, skipping update", policyName);
+                return false;
+            }
+
+            policy.Metadata.ResourceVersion = existing.Metadata.ResourceVersion;
+            await client.UpdateAsync(policy, cancellationToken);
+        }
+        else
+        {
+            await client.CreateAsync(policy, cancellationToken);
+        }
+
+        logger.LogInformation("Saved NetworkPolicy {PolicyName} with {RuleCount} egress rule(s) for provider {Name}", policyName, egressRules.Count, entity.Name());
+        return true;
+
+        static V1NetworkPolicySpec GetNetworkPolicySpec(V1FqdnProviderEntity entity)
+        {
+            // Serialize to do a deep copy for now
+            return KubernetesJsonSerializer.Deserialize<V1NetworkPolicySpec>(KubernetesJsonSerializer.Serialize(entity.Spec.Policy));
+        }
+
+        static string NetworkPolicyName(V1FqdnProviderEntity entity) => entity.Name();
     }
-
-    private static string NetworkPolicyName(V1FqdnProviderEntity entity) => entity.Name();
 
     private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetPeersAsync(V1FqdnProviderEntity entity, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         foreach (var egress in entity.Spec.Egress)
         {
-            var networks = await GetIpNetworksAsync(entity, egress.To, cancellationToken)
-                .Order(IPNetworkComparer.Instance)
-                .Select(network => new V1NetworkPolicyPeer { IpBlock = new V1IPBlock { Cidr = network.ToString() } })
-                .ToListAsync(cancellationToken);
-
-            yield return new V1NetworkPolicyEgressRule
+            if (egress.Domains is not null)
             {
-                To = networks,
-                Ports = egress.Ports
-            };
-        }
-    }
+                var peers = await GetIpNetworksAsync(egress.Domains, cancellationToken)
+                    .Order(IPNetworkComparer.Instance)
+                    .Select(network => new V1NetworkPolicyPeer { IpBlock = new V1IPBlock { Cidr = network.ToString() } })
+                    .ToListAsync(cancellationToken);
 
-    private async IAsyncEnumerable<IPNetwork> GetIpNetworksAsync(V1FqdnProviderEntity entity, V1FqdnProviderEntity.EgressRuleItem[] items, [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        foreach (var item in items)
-        {
-            if (item.Domains is not null)
-            {
-                await foreach (var ip in GetIpNetworksAsync(item.Domains, cancellationToken))
+                yield return new V1NetworkPolicyEgressRule
                 {
-                    yield return ip;
-                }
+                    To = peers,
+                    Ports = egress.Ports
+                };
             }
 
-            if (item.Providers is not null)
+            if (egress.Provider is not null)
             {
-                await foreach (var ip in GetIPNetworksAsync(entity, item.Providers, cancellationToken))
+                var rule = await GetEgressRuleFromProviderAsync(entity, egress.Provider, cancellationToken);
+                if (rule is not null)
                 {
-                    yield return ip;
+                    yield return rule;
                 }
             }
         }
     }
 
-    private async IAsyncEnumerable<IPNetwork> GetIPNetworksAsync(V1FqdnProviderEntity entity, V1FqdnProviderEntity.Provider[] providers, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async Task<V1NetworkPolicyEgressRule?> GetEgressRuleFromProviderAsync(V1FqdnProviderEntity entity, V1FqdnProviderEntity.Provider provider, CancellationToken cancellationToken)
     {
-        foreach (var provider in providers)
+        logger.LogInformation("Reconciling provider {Name} with service {ServiceName}:{Port}", entity.Name(), provider.ServiceName, provider.Port);
+
+        var response = await httpClient.GetFromJsonAsync<ProviderResponse>($"http://{provider.ServiceName}.{entity.Namespace()}:{provider.Port}{provider.Path}", cancellationToken);
+
+        if (response is null)
         {
-            logger.LogInformation("Reconciling provider {Name} with service {ServiceName}:{Port}", entity.Name(), provider.ServiceName, provider.Port);
-
-            var response = await httpClient.GetFromJsonAsync<ProviderResponse>($"http://{provider.ServiceName}.{entity.Namespace()}:{provider.Port}{provider.Path}", cancellationToken);
-
-            if (response is null)
-            {
-                logger.LogWarning("Received null response from provider {Name}", entity.Name());
-                continue;
-            }
-
-            await foreach (var ip in GetIpNetworksAsync([.. response.Ips, .. response.Fqdns], cancellationToken))
-            {
-                yield return ip;
-            }
+            logger.LogWarning("Received null response from provider {Name}", entity.Name());
+            return null;
         }
+
+        var peers = await GetIpNetworksAsync(response.Addresses, cancellationToken)
+            .Order(IPNetworkComparer.Instance)
+            .Select(network => new V1NetworkPolicyPeer { IpBlock = new V1IPBlock { Cidr = network.ToString() } })
+            .ToListAsync(cancellationToken);
+
+        return new V1NetworkPolicyEgressRule
+        {
+            To = peers,
+            Ports = response.Ports
+        };
     }
 
     private async IAsyncEnumerable<IPNetwork> GetIpNetworksAsync(IEnumerable<string> ipOrAddresses, [EnumeratorCancellation] CancellationToken token)
@@ -164,6 +206,10 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
                 {
                     throw;
                 }
+                catch (System.Net.Sockets.SocketException ex) when ((uint)ex.ErrorCode == 0xFFFDFFFF)
+                {
+                    logger.LogWarning("Could not resolve '{Fqdn}' from provider response", ipOrAddress);
+                }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "Failed to resolve FQDN '{Fqdn}' from provider response", ipOrAddress);
@@ -179,11 +225,11 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
 
     private sealed class ProviderResponse
     {
-        [JsonPropertyName("domains")]
-        public string[] Fqdns { get; set; } = [];
+        [JsonPropertyName("addresses")]
+        public string[] Addresses { get; set; } = [];
 
-        [JsonPropertyName("ips")]
-        public string[] Ips { get; set; } = [];
+        [JsonPropertyName("ports")]
+        public V1NetworkPolicyPort[] Ports { get; set; } = [];
     }
 
     private sealed class IPNetworkComparer : IComparer<IPNetwork>

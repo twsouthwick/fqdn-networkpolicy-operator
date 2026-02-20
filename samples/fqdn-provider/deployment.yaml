@@ -42,16 +42,18 @@ metadata:
   namespace: default
 spec:
   egress:
-    - to:
-        - providers:
-          - serviceName: fqdn-provider
-            port: 7942
-            path: /fqdnList
+    - domains:
+        - example.com
+        - api.example.com
       ports:
         - port: 443
           protocol: TCP
         - port: 80
           protocol: TCP
+    - provider:
+        serviceName: fqdn-provider
+        port: 7942
+        path: /fqdnList
   policy:
     podSelector: {}
     policyTypes:

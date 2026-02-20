@@ -6,7 +6,11 @@ builder.Logging.SetMinimumLevel(LogLevel.Trace);
 
 builder.Services
     .AddHttpClient()
-    .AddKubernetesOperator()
+    .AddKubernetesOperator(settings =>
+    {
+        settings.AutoAttachFinalizers = false;
+        settings.AutoDetachFinalizers = false;
+    })
     .RegisterComponents();
 
 using var host = builder.Build();

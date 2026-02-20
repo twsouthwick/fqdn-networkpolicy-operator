@@ -1,7 +1,6 @@
 using k8s.Models;
 using KubeOps.Abstractions.Entities;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
+using KubeOps.Abstractions.Entities.Attributes;
 
 namespace Swick.FqdnNetworkPolicyOperator.Entities;
 
@@ -18,16 +17,11 @@ public partial class V1FqdnProviderEntity : CustomKubernetesEntity<V1FqdnProvide
 
     public class EgressRule
     {
-        public EgressRuleItem[] To { get; set; } = [];
-
-        public V1NetworkPolicyPort[] Ports { get; set; } = [];
-    }
-
-    public class EgressRuleItem
-    {
         public string[]? Domains { get; set; }
 
-        public Provider[]? Providers { get; set; }
+        public V1NetworkPolicyPort[] Ports { get; set; } = [];
+
+        public Provider? Provider { get; set; }
     }
 
     public class Provider
@@ -44,10 +38,22 @@ public partial class V1FqdnProviderEntity : CustomKubernetesEntity<V1FqdnProvide
 
     public class EntityStatus
     {
-        public int FqdnCount { get; set; }
+        [AdditionalPrinterColumn]
+        public bool Ready { get; set; }
 
+        [AdditionalPrinterColumn]
         public int IpCount { get; set; }
 
-        public DateTimeOffset? LastUpdated { get; set; }
+        [AdditionalPrinterColumn]
+        public int DomainCount { get; set; }
+
+        [AdditionalPrinterColumn]
+        public DateTimeOffset? LastReconciled { get; set; }
+
+        [AdditionalPrinterColumn]
+        public DateTimeOffset? LastModified { get; set; }
+
+        [AdditionalPrinterColumn]
+        public string? Message { get; set; }
     }
 }
