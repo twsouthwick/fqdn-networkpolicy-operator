@@ -1,5 +1,5 @@
 next-version: 0.1.0
-mode: Mainline
+workflow: GitHubFlow/v1
 branches:
   main:
-    tag: ci
+    label: ci
