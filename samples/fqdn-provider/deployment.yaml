@@ -41,5 +41,18 @@ metadata:
   name: fqdn-provider
   namespace: default
 spec:
-  serviceName: fqdn-provider
-  port: 7942
+  egress:
+    - to:
+        - providers:
+          - serviceName: fqdn-provider
+            port: 7942
+            path: /fqdnList
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+  policy:
+    podSelector: {}
+    policyTypes:
+      - Egress

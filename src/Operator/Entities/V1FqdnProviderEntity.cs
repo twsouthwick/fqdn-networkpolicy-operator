@@ -1,6 +1,7 @@
 using k8s.Models;
 using KubeOps.Abstractions.Entities;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Swick.FqdnNetworkPolicyOperator.Entities;
 
@@ -9,8 +10,32 @@ public partial class V1FqdnProviderEntity : CustomKubernetesEntity<V1FqdnProvide
 {
     public class EntitySpec
     {
+        public EgressRule[] Egress { get; set; } = null!;
+
+        [Required]
+        public k8s.Models.V1NetworkPolicySpec Policy { get; set; } = null!;
+    }
+
+    public class EgressRule
+    {
+        public EgressRuleItem[] To { get; set; } = [];
+
+        public V1NetworkPolicyPort[] Ports { get; set; } = [];
+    }
+
+    public class EgressRuleItem
+    {
+        public string[]? Domains { get; set; }
+
+        public Provider[]? Providers { get; set; }
+    }
+
+    public class Provider
+    {
         [Required]
         public string ServiceName { get; set; } = null!;
+
+        public string? Name { get; set; }
 
         public int Port { get; set; } = 7942;
 
