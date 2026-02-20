@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using KubeOps.Operator;
 using Swick.FqdnNetworkPolicyOperator.Entities;
 
-namespace Operator.IntegrationTests;
+namespace Swick.FqdnNetworkPolicyOperator.IntegrationTests;
 
 /// <summary>
 /// Fixture that runs the operator in-process for integration testing.

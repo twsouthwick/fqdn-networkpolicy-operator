@@ -4,12 +4,12 @@ A Kubernetes operator that creates and manages `NetworkPolicy` resources with eg
 
 ## How It Works
 
-1. You create a `provider` custom resource (CR) that describes your desired egress rules using domain names, raw IPs/CIDRs, or references to external _provider services_.
+1. You create a `FqdnNetworkPolicy` custom resource (CR) that describes your desired egress rules using domain names, raw IPs/CIDRs, or references to external _provider services_.
 2. The operator reconciles the CR every 30 seconds (2 minutes on failure):
    - Resolves each FQDN in `domains` egress items to IP addresses via DNS.
    - Queries any referenced provider services for addresses and ports.
    - Creates or updates a `NetworkPolicy` in the same namespace, owned by the CR (so it is garbage-collected when the CR is deleted).
-3. The CR's `status` is updated with the total resolved IP count and a `lastUpdated` timestamp.
+3. The CR's `status` is updated with the total resolved IP count and a `lastReconciled` timestamp.
 
 ```
 provider CR  ──►  Operator  ──►  NetworkPolicy (IP-based egress)
@@ -18,10 +18,10 @@ provider CR  ──►  Operator  ──►  NetworkPolicy (IP-based egress)
                      └─ HTTP calls to provider services → more IPs/FQDNs
 ```
 
-## Custom Resource: `provider`
+## Custom Resource: `FqdnNetworkPolicy`
 
-**API group/version:** `com.github.twsouthwick.fqdnnetpol/v1alpha1`  
-**Kind:** `provider`
+**API group/version:** `fqdnnetpol.swick.dev/v1alpha1`  
+**Kind:** `FqdnNetworkPolicy`
 
 ### Spec
 
@@ -38,7 +38,7 @@ Each `spec.egress[]` item is **one of**:
 
 | Field | Description |
 |---|---|
-| `spec.egress[].provider` | Reference to a single provider service (see below). |
+| `spec.egress[].externalProvider` | Reference to a single external provider service (see below). |
 
 | Other field | Description |
 |---|---|
@@ -65,20 +65,25 @@ Each entry in `addresses` can be a hostname/FQDN (resolved via DNS), a plain IP,
 | `serviceName` | *(required)* | Kubernetes Service name. The operator calls `http://<serviceName>.<namespace>:<port><path>`. |
 | `name` | — | Optional label for logging. |
 | `port` | `7942` | Port the service listens on. |
-| `path` | `/fqdnlist` | HTTP path that returns the provider response. |
+| `path` | `/fqdnList` | HTTP path that returns the provider response. |
 
 ### Status
 
 | Field | Description |
 |---|---|
+| `status.ready` | Whether the last reconciliation succeeded. |
 | `status.ipCount` | Number of IP blocks resolved in the last reconciliation. |
-| `status.lastUpdated` | Timestamp of the last successful reconciliation. |
+| `status.domainCount` | Number of distinct FQDNs across all domain-based egress rules. |
+| `status.warningCount` | Number of non-fatal warnings in the last reconciliation (e.g. failed DNS lookups). |
+| `status.lastReconciled` | Timestamp of the last successful reconciliation. |
+| `status.lastModified` | Timestamp of the last time the generated `NetworkPolicy` was actually changed. |
+| `status.message` | Human-readable summary of the last reconciliation result. |
 
 ### Example
 
 ```yaml
-apiVersion: com.github.twsouthwick.fqdnnetpol/v1alpha1
-kind: provider
+apiVersion: fqdnnetpol.swick.dev/v1alpha1
+kind: FqdnNetworkPolicy
 metadata:
   name: my-egress-policy
   namespace: default
@@ -92,7 +97,7 @@ spec:
           protocol: TCP
         - port: 80
           protocol: TCP
-    - provider:
+    - externalProvider:
         serviceName: fqdn-provider
         port: 7942
         path: /fqdnList
@@ -113,9 +118,9 @@ The [`samples/fqdn-provider`](samples/fqdn-provider/) directory contains a minim
 ```
 src/Operator/                 # .NET 10 / KubeOps operator
   Controllers/
-    V1FqdnProviderOperator.cs # Reconciliation logic
+    V1FqdnNetworkPolicyController.cs # Reconciliation logic
   Entities/
-    V1FqdnProviderEntity.cs   # CRD schema / C# model
+    V1FqdnNetworkPolicyEntity.cs   # CRD schema / C# model
   Program.cs                  # Host setup
 samples/fqdn-provider/        # Sample provider (TypeScript/Express)
 artifacts/k8s/                # Generated CRD, RBAC, and deployment manifests
@@ -139,7 +144,7 @@ kind create cluster --name fqdn-operator --wait 60s
 ### 2. Apply the CRD and RBAC
 
 ```bash
-kubectl apply -f artifacts/k8s/providers_com_github_twsouthwick_fqdnnetpol.yaml
+kubectl apply -f artifacts/k8s/fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml
 kubectl apply -f artifacts/k8s/operator-role.yaml -f artifacts/k8s/operator-role-binding.yaml
 ```
 

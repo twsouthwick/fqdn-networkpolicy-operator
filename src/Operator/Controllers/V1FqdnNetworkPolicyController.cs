@@ -10,19 +10,20 @@ using KubeOps.KubernetesClient;
 using KubeOps.Operator.Serialization;
 using Swick.FqdnNetworkPolicyOperator.Entities;
 
+
 namespace Swick.FqdnNetworkPolicyOperator.Controllers;
 
 [EntityRbac(typeof(V1NetworkPolicy), Verbs = RbacVerb.Get | RbacVerb.Create | RbacVerb.Update)]
-[EntityRbac(typeof(V1FqdnProviderEntity), Verbs = RbacVerb.Get | RbacVerb.Update)]
-public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient client, ILogger<V1FqdnProviderOperator> logger)
-    : IEntityController<V1FqdnProviderEntity>
+[EntityRbac(typeof(V1FqdnNetworkPolicyEntity), Verbs = RbacVerb.Get | RbacVerb.Update)]
+public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesClient client, ILogger<V1FqdnNetworkPolicyController> logger)
+    : IEntityController<V1FqdnNetworkPolicyEntity>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public Task<ReconciliationResult<V1FqdnProviderEntity>> DeletedAsync(V1FqdnProviderEntity entity, CancellationToken cancellationToken)
-        => Task.FromResult(ReconciliationResult<V1FqdnProviderEntity>.Success(entity));
+    public Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> DeletedAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
+        => Task.FromResult(ReconciliationResult<V1FqdnNetworkPolicyEntity>.Success(entity));
 
-    public async Task<ReconciliationResult<V1FqdnProviderEntity>> ReconcileAsync(V1FqdnProviderEntity entity, CancellationToken cancellationToken)
+    public async Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> ReconcileAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
     {
         try
         {
@@ -32,12 +33,12 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
             var changed = await ApplyNetworkPolicyAsync(entity, egressRules, cancellationToken);
 
             entity.Status.Ready = true;
-            entity.Status.IpCount = egressRules.Sum(r => r.To?.Count ?? 0);
+            entity.Status.IPCount = egressRules.Sum(r => r.To?.Count ?? 0);
             entity.Status.DomainCount = entity.Spec.Egress
                 .SelectMany(e => e.Domains ?? [])
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Count();
-            entity.Status.Warnings = warnings.Count;
+            entity.Status.WarningCount = warnings.Count;
             entity.Status.LastReconciled = DateTimeOffset.UtcNow;
             if (changed)
             {
@@ -49,7 +50,7 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
 
             var updatedEntity = await client.UpdateStatusAsync(entity, cancellationToken);
 
-            return ReconciliationResult<V1FqdnProviderEntity>.Success(updatedEntity, TimeSpan.FromSeconds(30));
+            return ReconciliationResult<V1FqdnNetworkPolicyEntity>.Success(updatedEntity, TimeSpan.FromSeconds(30));
         }
         catch (Exception e)
         {
@@ -65,12 +66,12 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
                 /* best effort */
             }
 
-            logger.LogError(e, "Error reconciling provider {Name}", entity.Name());
-            return ReconciliationResult<V1FqdnProviderEntity>.Failure(entity, e.Message, e, TimeSpan.FromMinutes(2));
+            logger.LogError(e, "Error reconciling {Name}", entity.Name());
+            return ReconciliationResult<V1FqdnNetworkPolicyEntity>.Failure(entity, e.Message, e, TimeSpan.FromMinutes(2));
         }
     }
 
-    private async Task<bool> ApplyNetworkPolicyAsync(V1FqdnProviderEntity entity, List<V1NetworkPolicyEgressRule> egressRules, CancellationToken cancellationToken)
+    private async Task<bool> ApplyNetworkPolicyAsync(V1FqdnNetworkPolicyEntity entity, List<V1NetworkPolicyEgressRule> egressRules, CancellationToken cancellationToken)
     {
         var policyName = NetworkPolicyName(entity);
 
@@ -124,16 +125,16 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
         logger.LogInformation("Saved NetworkPolicy {PolicyName} with {RuleCount} egress rule(s) for provider {Name}", policyName, egressRules.Count, entity.Name());
         return true;
 
-        static V1NetworkPolicySpec GetNetworkPolicySpec(V1FqdnProviderEntity entity)
+        static V1NetworkPolicySpec GetNetworkPolicySpec(V1FqdnNetworkPolicyEntity entity)
         {
             // Serialize to do a deep copy for now
             return KubernetesJsonSerializer.Deserialize<V1NetworkPolicySpec>(KubernetesJsonSerializer.Serialize(entity.Spec.Policy));
         }
 
-        static string NetworkPolicyName(V1FqdnProviderEntity entity) => entity.Name();
+        static string NetworkPolicyName(V1FqdnNetworkPolicyEntity entity) => entity.Name();
     }
 
-    private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetPeersAsync(V1FqdnProviderEntity entity, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetPeersAsync(V1FqdnNetworkPolicyEntity entity, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         foreach (var egress in entity.Spec.Egress)
         {
@@ -151,9 +152,9 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
                 };
             }
 
-            if (egress.Provider is not null)
+            if (egress.ExternalProvider is not null)
             {
-                var rule = await GetEgressRuleFromProviderAsync(entity, egress.Provider, warnings, cancellationToken);
+                var rule = await GetEgressRuleFromProviderAsync(entity, egress.ExternalProvider, warnings, cancellationToken);
                 if (rule is not null)
                 {
                     yield return rule;
@@ -162,16 +163,16 @@ public class V1FqdnProviderOperator(HttpClient httpClient, IKubernetesClient cli
         }
     }
 
-    private async Task<V1NetworkPolicyEgressRule?> GetEgressRuleFromProviderAsync(V1FqdnProviderEntity entity, V1FqdnProviderEntity.Provider provider, List<string> warnings, CancellationToken cancellationToken)
+    private async Task<V1NetworkPolicyEgressRule?> GetEgressRuleFromProviderAsync(V1FqdnNetworkPolicyEntity entity, V1FqdnNetworkPolicyEntity.ExternalProviderRef provider, List<string> warnings, CancellationToken cancellationToken)
     {
-        logger.LogInformation("Reconciling provider {Name} with service {ServiceName}:{Port}", entity.Name(), provider.ServiceName, provider.Port);
+        logger.LogInformation("Fetching addresses from external provider {ServiceName}:{Port} for {Name}", provider.ServiceName, provider.Port, entity.Name());
 
         var response = await httpClient.GetFromJsonAsync<ProviderResponse>($"http://{provider.ServiceName}.{entity.Namespace()}:{provider.Port}{provider.Path}", cancellationToken);
 
         if (response is null)
         {
-            var msg = $"Null response from provider service '{provider.ServiceName}'";
-            logger.LogWarning("Received null response from provider {Name}", entity.Name());
+            var msg = $"Null response from external provider service '{provider.ServiceName}'";
+            logger.LogWarning("Received null response from external provider {ServiceName} for {Name}", provider.ServiceName, entity.Name());
             warnings.Add(msg);
             return null;
         }

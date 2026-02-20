@@ -45,7 +45,7 @@
         {
             "label": "apply-crd",
             "type": "shell",
-            "command": "kubectl apply -f ${workspaceFolder}/artifacts/k8s/providers_com_github_twsouthwick_fqdnnetpol.yaml",
+            "command": "kubectl apply -f ${workspaceFolder}/artifacts/k8s/fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml",
             "problemMatcher": [],
             "presentation": { "reveal": "silent", "panel": "shared" }
         },

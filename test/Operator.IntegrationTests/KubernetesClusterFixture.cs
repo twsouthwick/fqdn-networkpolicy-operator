@@ -2,7 +2,7 @@ using System.Diagnostics;
 using k8s;
 using Xunit;
 
-namespace Operator.IntegrationTests;
+namespace Swick.FqdnNetworkPolicyOperator.IntegrationTests;
 
 /// <summary>
 /// Fixture that ensures the Kubernetes cluster is ready and CRDs are applied.
@@ -75,7 +75,7 @@ public class KubernetesClusterFixture : IAsyncLifetime
         }
 
         var crdPath = Path.Combine(dir.FullName, "artifacts", "k8s", 
-            "providers_com_github_twsouthwick_fqdnnetpol.yaml");
+            "fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml");
 
         if (!File.Exists(crdPath))
         {

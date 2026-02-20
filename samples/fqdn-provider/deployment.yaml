@@ -34,9 +34,9 @@ spec:
     - port: 7942
       targetPort: 7942
 ---
-# provider CR that points the operator at this service
-apiVersion: com.github.twsouthwick.fqdnnetpol/v1alpha1
-kind: provider
+# FqdnNetworkPolicy CR that points the operator at this service
+apiVersion: fqdnnetpol.swick.dev/v1alpha1
+kind: FqdnNetworkPolicy
 metadata:
   name: fqdn-provider
   namespace: default
@@ -50,7 +50,7 @@ spec:
           protocol: TCP
         - port: 80
           protocol: TCP
-    - provider:
+    - externalProvider:
         serviceName: fqdn-provider
         port: 7942
         path: /fqdnList
