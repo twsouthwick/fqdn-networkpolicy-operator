@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           key: operator-config-${{ github.run_id }}
-          path: src/Operator/config/
+          path: artifacts/k8s/
 
       - name: Cache container image
         if: matrix.configuration == 'release'
@@ -87,7 +87,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: operator-config-${{ github.run_id }}
-          path: src/Operator/config/
+          path: artifacts/k8s/
           fail-on-cache-miss: true
 
       - name: Setup kind
