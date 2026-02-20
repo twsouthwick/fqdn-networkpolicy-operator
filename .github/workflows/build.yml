@@ -1,9 +1,9 @@
-name: CI
+name: Build
 
 on:
   push:
     branches: [main]
-    tags-ignore:
+    tags:
       - 'v*.*.*'
   pull_request:
     branches: [main]
@@ -125,7 +125,6 @@ jobs:
   docker-push:
     runs-on: ubuntu-latest
     needs: [build, integration-tests, version]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     permissions:
       contents: read
@@ -151,3 +150,38 @@ jobs:
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+
+  helm-publish:
+    runs-on: ubuntu-latest
+    needs: [build, integration-tests, version]
+
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restore operator config
+        uses: actions/cache/restore@v4
+        with:
+          key: operator-config-${{ github.run_id }}
+          path: artifacts/k8s/
+          fail-on-cache-miss: true
+
+      - name: Copy CRD into chart
+        run: |
+          mkdir -p charts/fqdn-networkpolicy-operator/crds
+          cp artifacts/k8s/fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml \
+            charts/fqdn-networkpolicy-operator/crds/
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/fqdn-networkpolicy-operator \
+            --version ${{ needs.version.outputs.semVer }} \
+            --app-version ${{ needs.version.outputs.semVer }}
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart
+        run: helm push fqdn-networkpolicy-operator-${{ needs.version.outputs.semVer }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
