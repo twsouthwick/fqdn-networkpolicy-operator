@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fqdn-networkpolicy-operator
+description: A Kubernetes operator that converts FQDN-based NetworkPolicy resources into standard IP-based NetworkPolicies using resolved DNS addresses.
+type: application
+version: 0.0.0
+appVersion: 0.0.0

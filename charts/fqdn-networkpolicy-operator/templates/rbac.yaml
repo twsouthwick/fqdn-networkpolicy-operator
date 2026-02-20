@@ -1,0 +1,37 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "fqdn-networkpolicy-operator.fullname" . }}
+  labels:
+    {{- include "fqdn-networkpolicy-operator.labels" . | nindent 4 }}
+rules:
+- apiGroups: [networking.k8s.io]
+  resources: [networkpolicies]
+  verbs: [get, create, update]
+- apiGroups: [fqdnnetpol.swick.dev]
+  resources: [fqdnnetworkpolicies]
+  verbs: [get, update]
+- apiGroups: [""]
+  resources: [events]
+  verbs: [get, list, create, update]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [fqdnnetpol.swick.dev]
+  resources: [fqdnnetworkpolicies/status]
+  verbs: [get, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "fqdn-networkpolicy-operator.fullname" . }}
+  labels:
+    {{- include "fqdn-networkpolicy-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "fqdn-networkpolicy-operator.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "fqdn-networkpolicy-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}

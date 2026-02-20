@@ -1,0 +1,4 @@
+mode: Mainline
+branches:
+  main:
+    tag: ci

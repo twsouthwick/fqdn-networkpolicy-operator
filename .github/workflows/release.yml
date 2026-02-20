@@ -14,13 +14,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      - name: Extract version from tag
+      - name: Setup GitVersion
+        uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: '6.x'
+
+      - name: Determine version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+
+      - name: Resolve version
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
+          echo "version=${{ steps.gitversion.outputs.semVer }}" >> $GITHUB_OUTPUT
+          echo "Building version: ${{ steps.gitversion.outputs.semVer }}"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -108,3 +118,31 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+
+  helm-publish:
+    runs-on: ubuntu-latest
+    needs: [build, docker-push]
+
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Copy CRD into chart
+        run: |
+          mkdir -p charts/fqdn-networkpolicy-operator/crds
+          cp artifacts/k8s/fqdnnetworkpolicies_fqdnnetpol_swick_dev.yaml \
+            charts/fqdn-networkpolicy-operator/crds/
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/fqdn-networkpolicy-operator \
+            --version ${{ needs.build.outputs.version }} \
+            --app-version ${{ needs.build.outputs.version }}
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart
+        run: helm push fqdn-networkpolicy-operator-${{ needs.build.outputs.version }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts

@@ -1,0 +1,7 @@
+fqdn-networkpolicy-operator has been deployed to namespace {{ .Release.Namespace }}.
+
+Check operator status:
+  kubectl get deployment {{ include "fqdn-networkpolicy-operator.fullname" . }} -n {{ .Release.Namespace }}
+
+View FqdnNetworkPolicy resources across all namespaces:
+  kubectl get fqdnnetworkpolicies.fqdnnetpol.swick.dev -A

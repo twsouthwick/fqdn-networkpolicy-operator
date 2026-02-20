@@ -12,8 +12,30 @@ env:
   IMAGE_NAME: fqdn-networkpolicy-operator
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      semVer: ${{ steps.gitversion.outputs.semVer }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: '6.x'
+      - id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint Helm chart
+        run: helm lint charts/fqdn-networkpolicy-operator
+
   build:
     runs-on: ubuntu-latest
+    needs: [version, lint]
 
     strategy:
       matrix:
@@ -34,7 +56,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Build
-        run: dotnet build --no-restore -c ${{ matrix.configuration }}
+        run: dotnet build --no-restore -c ${{ matrix.configuration }} -p:Version=${{ needs.version.outputs.semVer }}
 
       - name: Build container image
         if: matrix.configuration == 'release'
@@ -43,6 +65,8 @@ jobs:
             --os linux --arch x64 \
             -c Release \
             /t:PublishContainer \
+            -p:Version=${{ needs.version.outputs.semVer }} \
+            -p:ContainerImageTag=${{ needs.version.outputs.semVer }} \
             -p:ContainerArchiveOutputPath=${{ github.workspace }}/artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
 
       - name: Cache test binaries
@@ -100,7 +124,7 @@ jobs:
 
   docker-push:
     runs-on: ubuntu-latest
-    needs: [build, integration-tests]
+    needs: [build, integration-tests, version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     permissions:
@@ -121,7 +145,9 @@ jobs:
       - name: Load and push container image
         run: |
           docker load -i artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
-          docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }} ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }} ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }} ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.semVer }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
