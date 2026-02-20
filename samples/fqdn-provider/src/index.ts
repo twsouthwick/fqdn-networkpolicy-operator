@@ -22,7 +22,7 @@ const data: ProviderResponse = {
   ],
 };
 
-app.get("/fqdnList", (_req: Request, res: Response) => {
+app.get("/addresses", (_req: Request, res: Response) => {
   res.json(data);
 });
 

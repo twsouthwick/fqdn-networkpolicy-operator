@@ -65,7 +65,7 @@ Each entry in `addresses` can be a hostname/FQDN (resolved via DNS), a plain IP,
 | `serviceName` | *(required)* | Kubernetes Service name. The operator calls `http://<serviceName>.<namespace>:<port><path>`. |
 | `name` | — | Optional label for logging. |
 | `port` | `7942` | Port the service listens on. |
-| `path` | `/fqdnList` | HTTP path that returns the provider response. |
+| `path` | `/addresses` | HTTP path that returns the provider response. |
 
 ### Status
 
@@ -100,7 +100,7 @@ spec:
     - externalProvider:
         serviceName: fqdn-provider
         port: 7942
-        path: /fqdnList
+        path: /addresses
   policy:
     podSelector: {}
     policyTypes:

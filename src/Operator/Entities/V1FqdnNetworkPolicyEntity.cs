@@ -34,7 +34,7 @@ public partial class V1FqdnNetworkPolicyEntity : CustomKubernetesEntity<V1FqdnNe
 
         public int Port { get; set; } = 7942;
 
-        public string Path { get; set; } = "/fqdnList";
+        public string Path { get; set; } = "/addresses";
     }
 
     public class EntityStatus

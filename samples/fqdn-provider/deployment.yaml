@@ -53,7 +53,7 @@ spec:
     - externalProvider:
         serviceName: fqdn-provider
         port: 7942
-        path: /fqdnList
+        path: /addresses
   policy:
     podSelector: {}
     policyTypes:
