@@ -10,7 +10,7 @@ rules:
   verbs: [get, create, update]
 - apiGroups: [fqdnnetpol.swick.dev]
   resources: [fqdnnetworkpolicies]
-  verbs: [get, update]
+  verbs: [get, list, watch, update]
 - apiGroups: [""]
   resources: [events]
   verbs: [get, list, create, update]

@@ -69,18 +69,13 @@ jobs:
             -p:ContainerImageTag=${{ needs.version.outputs.semVer }} \
             -p:ContainerArchiveOutputPath=${{ github.workspace }}/artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
 
-      - name: Cache test binaries
-        uses: actions/cache/save@v4
-        with:
-          key: test-binaries-${{ matrix.configuration }}-${{ github.run_id }}
-          path: artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/
+      - name: Setup kind
+        uses: helm/kind-action@v1
 
-      - name: Cache operator config
-        if: matrix.configuration == 'release'
-        uses: actions/cache/save@v4
-        with:
-          key: operator-config-${{ github.run_id }}
-          path: artifacts/k8s/
+      - name: Run integration tests
+        run: |
+          chmod +x ./artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/Operator.IntegrationTests
+          ./artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/Operator.IntegrationTests
 
       - name: Cache container image
         if: matrix.configuration == 'release'
@@ -103,33 +98,9 @@ jobs:
           key: helm-chart-${{ github.run_id }}
           path: charts/fqdn-networkpolicy-operator/
 
-  integration-tests:
-    runs-on: ubuntu-latest
-    needs: build
-
-    strategy:
-      matrix:
-        configuration: [debug, release]
-
-    steps:
-      - name: Restore test binaries
-        uses: actions/cache/restore@v4
-        with:
-          key: test-binaries-${{ matrix.configuration }}-${{ github.run_id }}
-          path: artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/
-          fail-on-cache-miss: true
-
-      - name: Setup kind
-        uses: helm/kind-action@v1
-
-      - name: Run integration tests
-        run: |
-          chmod +x ./artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/Operator.IntegrationTests
-          ./artifacts/bin/Operator.IntegrationTests/${{ matrix.configuration }}/Operator.IntegrationTests
-
   publish:
     runs-on: ubuntu-latest
-    needs: [build, integration-tests, version]
+    needs: [build, version]
 
     permissions:
       packages: write
