@@ -48,6 +48,9 @@ public partial class V1FqdnProviderEntity : CustomKubernetesEntity<V1FqdnProvide
         public int DomainCount { get; set; }
 
         [AdditionalPrinterColumn]
+        public int Warnings { get; set; }
+
+        [AdditionalPrinterColumn]
         public DateTimeOffset? LastReconciled { get; set; }
 
         [AdditionalPrinterColumn]
