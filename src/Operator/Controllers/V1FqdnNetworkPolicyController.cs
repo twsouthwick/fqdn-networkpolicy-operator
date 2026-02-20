@@ -154,8 +154,7 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
 
             if (egress.ExternalProvider is not null)
             {
-                var rule = await GetEgressRuleFromProviderAsync(entity, egress.ExternalProvider, warnings, cancellationToken);
-                if (rule is not null)
+                await foreach (var rule in GetEgressRuleFromProviderAsync(entity, egress.ExternalProvider, warnings, cancellationToken))
                 {
                     yield return rule;
                 }
@@ -163,30 +162,33 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
         }
     }
 
-    private async Task<V1NetworkPolicyEgressRule?> GetEgressRuleFromProviderAsync(V1FqdnNetworkPolicyEntity entity, V1FqdnNetworkPolicyEntity.ExternalProviderRef provider, List<string> warnings, CancellationToken cancellationToken)
+    private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetEgressRuleFromProviderAsync(V1FqdnNetworkPolicyEntity entity, V1FqdnNetworkPolicyEntity.ExternalProviderRef provider, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         logger.LogInformation("Fetching addresses from external provider {ServiceName}:{Port} for {Name}", provider.ServiceName, provider.Port, entity.Name());
 
-        var response = await httpClient.GetFromJsonAsync<ProviderResponse>($"http://{provider.ServiceName}.{entity.Namespace()}:{provider.Port}{provider.Path}", cancellationToken);
+        var envelope = await httpClient.GetFromJsonAsync<ProviderEnvelope>($"http://{provider.ServiceName}.{entity.Namespace()}:{provider.Port}{provider.Path}", cancellationToken);
 
-        if (response is null)
+        if (envelope is null)
         {
             var msg = $"Null response from external provider service '{provider.ServiceName}'";
             logger.LogWarning("Received null response from external provider {ServiceName} for {Name}", provider.ServiceName, entity.Name());
             warnings.Add(msg);
-            return null;
+            yield break;
         }
 
-        var peers = await GetIpNetworksAsync(response.Addresses, warnings, cancellationToken)
-            .Order(IPNetworkComparer.Instance)
-            .Select(network => new V1NetworkPolicyPeer { IpBlock = new V1IPBlock { Cidr = network.ToString() } })
-            .ToListAsync(cancellationToken);
-
-        return new V1NetworkPolicyEgressRule
+        foreach (var response in envelope.Egress)
         {
-            To = peers,
-            Ports = response.Ports
-        };
+            var peers = await GetIpNetworksAsync(response.Addresses, warnings, cancellationToken)
+                .Order(IPNetworkComparer.Instance)
+                .Select(network => new V1NetworkPolicyPeer { IpBlock = new V1IPBlock { Cidr = network.ToString() } })
+                .ToListAsync(cancellationToken);
+
+            yield return new V1NetworkPolicyEgressRule
+            {
+                To = peers,
+                Ports = response.Ports
+            };
+        }
     }
 
     private async IAsyncEnumerable<IPNetwork> GetIpNetworksAsync(IEnumerable<string> ipOrAddresses, List<string> warnings, [EnumeratorCancellation] CancellationToken token)
@@ -232,7 +234,13 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
         }
     }
 
-    private sealed class ProviderResponse
+    private sealed class ProviderEnvelope
+    {
+        [JsonPropertyName("egress")]
+        public ProviderEgressRule[] Egress { get; set; } = [];
+    }
+
+    private sealed class ProviderEgressRule
     {
         [JsonPropertyName("addresses")]
         public string[] Addresses { get; set; } = [];

@@ -8,17 +8,26 @@ interface PortRule {
   protocol: string;
 }
 
-interface ProviderResponse {
+interface EgressRule {
   addresses: string[];
   ports: PortRule[];
 }
 
-// Edit these lists to configure which domains and IPs this provider exposes.
+interface ProviderResponse {
+  egress: EgressRule[];
+}
+
+// Edit these entries to configure which domains, IPs, and ports this provider exposes.
+// Each entry maps a set of addresses to a set of ports.
 const data: ProviderResponse = {
-  addresses: ["google.com", "10.10.10.10/32"],
-  ports: [
-    { port: 443, protocol: "TCP" },
-    { port: 80, protocol: "TCP" },
+  egress: [
+    {
+      addresses: ["google.com", "10.10.10.10/32"],
+      ports: [
+        { port: 443, protocol: "TCP" },
+        { port: 80, protocol: "TCP" },
+      ],
+    },
   ],
 };
 

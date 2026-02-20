@@ -31,7 +31,8 @@
 		"vscode": {
 			"extensions": [
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
-				"ms-dotnettools.csdevkit"
+				"ms-dotnettools.csdevkit",
+				"MermaidChart.vscode-mermaid-chart"
 			]
 		}
 	}
