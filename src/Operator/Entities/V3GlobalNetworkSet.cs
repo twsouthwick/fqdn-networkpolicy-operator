@@ -24,4 +24,10 @@ public class V3GlobalNetworkSet : IKubernetesObject<V1ObjectMeta>
         [JsonPropertyName("nets")]
         public List<string> Nets { get; set; } = [];
     }
+
+    public class List
+    {
+        [JsonPropertyName("items")]
+        public V3GlobalNetworkSet[] Items { get; set; } = [];
+    }
 }

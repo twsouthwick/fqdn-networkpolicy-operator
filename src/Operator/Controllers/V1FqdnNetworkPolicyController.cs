@@ -23,18 +23,32 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    private static Dictionary<string, string> ManagedLabels(V1FqdnNetworkPolicyEntity entity) => new()
+    {
+        [$"{Constants.ApiGroup}/managed-by"] = "fqdn-networkpolicy-operator",
+        [$"{Constants.ApiGroup}/name"] = entity.Name(),
+        [$"{Constants.ApiGroup}/namespace"] = entity.Namespace(),
+    };
+
+    private static string LabelSelector(V1FqdnNetworkPolicyEntity entity) =>
+        $"{Constants.ApiGroup}/managed-by=fqdn-networkpolicy-operator,{Constants.ApiGroup}/name={entity.Name()},{Constants.ApiGroup}/namespace={entity.Namespace()}";
+
     public async Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> DeletedAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
     {
-        try
+        var existing = await FindGlobalNetworkSetAsync(entity, cancellationToken);
+        if (existing is not null)
         {
-            await kubernetes.CustomObjects.DeleteClusterCustomObjectAsync(
-                "projectcalico.org", "v3", "globalnetworksets", GlobalNetworkSetName(entity),
-                cancellationToken: cancellationToken);
-            logger.LogInformation("Deleted GlobalNetworkSet {Name}", GlobalNetworkSetName(entity));
-        }
-        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
-        {
-            // Resource or CRD not available — nothing to clean up
+            try
+            {
+                await kubernetes.CustomObjects.DeleteClusterCustomObjectAsync(
+                    "projectcalico.org", "v3", "globalnetworksets", existing.Metadata.Name,
+                    cancellationToken: cancellationToken);
+                logger.LogInformation("Deleted GlobalNetworkSet {Name}", existing.Metadata.Name);
+            }
+            catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Already gone
+            }
         }
 
         return ReconciliationResult<V1FqdnNetworkPolicyEntity>.Success(entity);
@@ -106,6 +120,7 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
             {
                 Name = policyName,
                 NamespaceProperty = entity.Namespace(),
+                Labels = ManagedLabels(entity),
                 OwnerReferences =
                 [
                     new V1OwnerReference
@@ -169,26 +184,12 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
             Metadata = new V1ObjectMeta
             {
                 Name = name,
-                Labels = new Dictionary<string, string>
-                {
-                    [$"{Constants.ApiGroup}/name"] = entity.Name(),
-                    [$"{Constants.ApiGroup}/namespace"] = entity.Namespace(),
-                },
+                Labels = ManagedLabels(entity),
             },
             Spec = new V3GlobalNetworkSet.GlobalNetworkSetSpec { Nets = nets },
         };
 
-        V3GlobalNetworkSet? existingGns = null;
-        try
-        {
-            existingGns = await kubernetes.CustomObjects.GetClusterCustomObjectAsync<V3GlobalNetworkSet>(
-                "projectcalico.org", "v3", "globalnetworksets", name, cancellationToken);
-        }
-        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
-        {
-            // Resource doesn't exist yet — will create below.
-            // If the CRD itself is missing, the create call will also 404 and we skip.
-        }
+        var existingGns = await FindGlobalNetworkSetAsync(entity, cancellationToken);
 
         if (existingGns is not null)
         {
@@ -223,6 +224,23 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
     }
 
     private static string GlobalNetworkSetName(V1FqdnNetworkPolicyEntity entity) => $"fqdn-{entity.Namespace()}-{entity.Name()}";
+
+    private async Task<V3GlobalNetworkSet?> FindGlobalNetworkSetAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await kubernetes.CustomObjects.ListClusterCustomObjectAsync<V3GlobalNetworkSet.List>(
+                "projectcalico.org", "v3", "globalnetworksets",
+                labelSelector: LabelSelector(entity),
+                cancellationToken: cancellationToken);
+            return result.Items.FirstOrDefault();
+        }
+        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
+        {
+            // CRD not installed
+            return null;
+        }
+    }
 
     private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetPeersAsync(V1FqdnNetworkPolicyEntity entity, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
