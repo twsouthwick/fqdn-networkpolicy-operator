@@ -2,6 +2,8 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using k8s;
+using k8s.Autorest;
 using k8s.Models;
 using KubeOps.Abstractions.Rbac;
 using KubeOps.Abstractions.Reconciliation;
@@ -15,13 +17,28 @@ namespace Swick.FqdnNetworkPolicyOperator.Controllers;
 
 [EntityRbac(typeof(V1NetworkPolicy), Verbs = RbacVerb.Get | RbacVerb.Create | RbacVerb.Update)]
 [EntityRbac(typeof(V1FqdnNetworkPolicyEntity), Verbs = RbacVerb.Get | RbacVerb.Update)]
-public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesClient client, ILogger<V1FqdnNetworkPolicyController> logger)
+[EntityRbac(typeof(V3GlobalNetworkSet), Verbs = RbacVerb.Get | RbacVerb.Create | RbacVerb.Update | RbacVerb.Delete)]
+public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesClient client, IKubernetes kubernetes, ILogger<V1FqdnNetworkPolicyController> logger)
     : IEntityController<V1FqdnNetworkPolicyEntity>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> DeletedAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
-        => Task.FromResult(ReconciliationResult<V1FqdnNetworkPolicyEntity>.Success(entity));
+    public async Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> DeletedAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await kubernetes.CustomObjects.DeleteClusterCustomObjectAsync(
+                "projectcalico.org", "v3", "globalnetworksets", GlobalNetworkSetName(entity),
+                cancellationToken: cancellationToken);
+            logger.LogInformation("Deleted GlobalNetworkSet {Name}", GlobalNetworkSetName(entity));
+        }
+        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Resource or CRD not available — nothing to clean up
+        }
+
+        return ReconciliationResult<V1FqdnNetworkPolicyEntity>.Success(entity);
+    }
 
     public async Task<ReconciliationResult<V1FqdnNetworkPolicyEntity>> ReconcileAsync(V1FqdnNetworkPolicyEntity entity, CancellationToken cancellationToken)
     {
@@ -30,7 +47,9 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
             var warnings = new List<string>();
             var egressRules = await GetPeersAsync(entity, warnings, cancellationToken).ToListAsync(cancellationToken);
 
-            var changed = await ApplyNetworkPolicyAsync(entity, egressRules, cancellationToken);
+            var networkPolicyChanged = await ApplyNetworkPolicyAsync(entity, egressRules, cancellationToken);
+            var gnsChanged = await ApplyGlobalNetworkSetAsync(entity, egressRules, cancellationToken);
+            var changed = networkPolicyChanged|| gnsChanged;
 
             entity.Status.Ready = true;
             entity.Status.IPCount = egressRules.Sum(r => r.To?.Count ?? 0);
@@ -133,6 +152,77 @@ public class V1FqdnNetworkPolicyController(HttpClient httpClient, IKubernetesCli
 
         static string NetworkPolicyName(V1FqdnNetworkPolicyEntity entity) => entity.Name();
     }
+
+    private async Task<bool> ApplyGlobalNetworkSetAsync(V1FqdnNetworkPolicyEntity entity, List<V1NetworkPolicyEgressRule> egressRules, CancellationToken cancellationToken)
+    {
+        var name = GlobalNetworkSetName(entity);
+        var nets = egressRules
+            .SelectMany(r => r.To ?? [])
+            .Select(p => p.IpBlock?.Cidr)
+            .OfType<string>()
+            .Distinct()
+            .Order()
+            .ToList();
+
+        var gns = new V3GlobalNetworkSet
+        {
+            Metadata = new V1ObjectMeta
+            {
+                Name = name,
+                Labels = new Dictionary<string, string>
+                {
+                    [$"{Constants.ApiGroup}/name"] = entity.Name(),
+                    [$"{Constants.ApiGroup}/namespace"] = entity.Namespace(),
+                },
+            },
+            Spec = new V3GlobalNetworkSet.GlobalNetworkSetSpec { Nets = nets },
+        };
+
+        V3GlobalNetworkSet? existingGns = null;
+        try
+        {
+            existingGns = await kubernetes.CustomObjects.GetClusterCustomObjectAsync<V3GlobalNetworkSet>(
+                "projectcalico.org", "v3", "globalnetworksets", name, cancellationToken);
+        }
+        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Resource doesn't exist yet — will create below.
+            // If the CRD itself is missing, the create call will also 404 and we skip.
+        }
+
+        if (existingGns is not null)
+        {
+            if (existingGns.Spec.Nets.Order().SequenceEqual(nets))
+            {
+                logger.LogDebug("GlobalNetworkSet {Name} is unchanged, skipping update", name);
+                return false;
+            }
+
+            gns.Metadata.ResourceVersion = existingGns.Metadata?.ResourceVersion;
+
+            await kubernetes.CustomObjects.ReplaceClusterCustomObjectAsync(
+                gns, "projectcalico.org", "v3", "globalnetworksets", name,
+                cancellationToken: cancellationToken);
+            logger.LogInformation("Updated GlobalNetworkSet {Name} with {NetCount} net(s)", name, nets.Count);
+            return true;
+        }
+
+        try
+        {
+            await kubernetes.CustomObjects.CreateClusterCustomObjectAsync(
+                gns, "projectcalico.org", "v3", "globalnetworksets",
+                cancellationToken: cancellationToken);
+            logger.LogInformation("Created GlobalNetworkSet {Name} with {NetCount} net(s)", name, nets.Count);
+            return true;
+        }
+        catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
+        {
+            logger.LogDebug("GlobalNetworkSet CRD not available, skipping");
+            return false;
+        }
+    }
+
+    private static string GlobalNetworkSetName(V1FqdnNetworkPolicyEntity entity) => $"fqdn-{entity.Namespace()}-{entity.Name()}";
 
     private async IAsyncEnumerable<V1NetworkPolicyEgressRule> GetPeersAsync(V1FqdnNetworkPolicyEntity entity, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
