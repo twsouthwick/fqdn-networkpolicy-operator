@@ -79,7 +79,7 @@ jobs:
 
       - name: Cache container image
         if: matrix.configuration == 'release'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           key: container-image-${{ github.run_id }}
           path: artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
@@ -93,7 +93,7 @@ jobs:
 
       - name: Cache Helm chart
         if: matrix.configuration == 'release'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           key: helm-chart-${{ github.run_id }}
           path: charts/fqdn-networkpolicy-operator/
@@ -107,14 +107,14 @@ jobs:
 
     steps:
       - name: Restore container image
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: container-image-${{ github.run_id }}
           path: artifacts/container/${{ env.IMAGE_NAME }}.tar.gz
           fail-on-cache-miss: true
 
       - name: Restore Helm chart
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: helm-chart-${{ github.run_id }}
           path: charts/fqdn-networkpolicy-operator/
