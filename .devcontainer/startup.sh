@@ -4,19 +4,55 @@ set -euo pipefail
 # Install dotnet tools if not already installed
 dotnet tool restore
 
+# The docker-in-docker feature resets iptables to legacy, which lacks
+# NAT table support in this container environment. Switch to nft backend.
+if ! sudo iptables -t nat -L >/dev/null 2>&1; then
+    echo "Switching iptables to nft backend..."
+    sudo update-alternatives --set iptables /usr/sbin/iptables-nft
+    sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
+fi
+
+# If dockerd is not running (e.g. docker-init.sh failed due to iptables),
+# clean up stale state and start it directly.
+if ! docker info >/dev/null 2>&1; then
+    echo "Starting Docker daemon..."
+    sudo pkill dockerd 2>/dev/null || true
+    sudo pkill containerd 2>/dev/null || true
+    sleep 1
+    sudo find /run /var/run -iname 'docker*.pid' -delete 2>/dev/null || :
+    sudo find /run /var/run -iname 'container*.pid' -delete 2>/dev/null || :
+    sudo rm -f /var/run/docker.sock
+    sudo sh -c 'dockerd &>/tmp/dockerd.log &'
+fi
+
 # Wait for Docker to be ready
-echo "Waiting for Docker..."
+echo "Waiting for Docker daemon..."
 while ! docker info >/dev/null 2>&1; do
     sleep 1
 done
-echo "Docker is ready"
+echo "Docker daemon is ready"
 
 # Ensure the persistent kind cluster is running
-echo "Starting kind cluster..."
-kind get clusters 2>/dev/null | grep -q '^fqdn-operator$' || kind create cluster --name fqdn-operator --wait 60s
-kind export kubeconfig --name fqdn-operator
-kubectl cluster-info --context kind-fqdn-operator
-echo "kind cluster ready"
+start_kind_cluster() {
+    echo "Starting kind cluster..."
+    if kind get clusters 2>/dev/null | grep -q '^fqdn-operator$'; then
+        echo "kind cluster already exists"
+    else
+        if ! kind create cluster --name fqdn-operator --config /workspaces/fqdn-networkpolicy-operator/.devcontainer/kind-config.yaml --wait 60s 2>&1; then
+            echo "ERROR: Failed to create kind cluster."
+            return 1
+        fi
+    fi
+    kind export kubeconfig --name fqdn-operator
+    kubectl cluster-info --context kind-fqdn-operator
+    echo "kind cluster ready"
+}
+
+if ! start_kind_cluster; then
+    echo "Continuing without a kind cluster. Create one manually with: kind create cluster --name fqdn-operator"
+    dotnet restore
+    exit 0
+fi
 
 dotnet restore
 

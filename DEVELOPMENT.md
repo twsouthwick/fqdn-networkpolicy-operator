@@ -5,9 +5,34 @@ This document covers how to build, run, and contribute to the FQDN Network Polic
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker](https://docs.docker.com/get-docker/)
+- [Docker](https://docs.docker.com/get-docker/) or [Podman](https://podman.io/)
 - [kind](https://kind.sigs.k8s.io/) — for running a local Kubernetes cluster
 - `kubectl` configured against your cluster
+
+### Using Podman
+
+If your host uses Podman (rootless by default), kind requires cgroup delegation.
+Configure this **on your host** before opening the devcontainer:
+
+**Podman Desktop / Podman Machine (macOS/Windows):**
+
+```bash
+podman machine stop
+podman machine set --rootful
+podman machine start
+```
+
+**Linux with systemd:**
+
+```bash
+sudo loginctl enable-linger $USER
+sudo mkdir -p /etc/systemd/system/user@.service.d
+echo -e '[Service]\nDelegate=yes' | \
+  sudo tee /etc/systemd/system/user@.service.d/delegate.conf
+sudo systemctl daemon-reload
+```
+
+Then rebuild the devcontainer.
 
 ## Project Structure
 

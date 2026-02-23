@@ -78,7 +78,7 @@
             "label": "kind: create cluster",
             "detail": "Create a local kind Kubernetes cluster named fqdn-operator (no-op if already running)",
             "type": "shell",
-            "command": "kind get clusters 2>/dev/null | grep -q '^fqdn-operator$' || kind create cluster --name fqdn-operator --wait 60s",
+            "command": "kind get clusters 2>/dev/null | grep -q '^fqdn-operator$' || kind create cluster --name fqdn-operator --config .devcontainer/kind-config.yaml --wait 60s",
             "problemMatcher": [],
             "presentation": { "reveal": "always", "panel": "shared" }
         },
