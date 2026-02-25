@@ -4,11 +4,11 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="KubeOps.Generator" Version="10.2.3">
+    <PackageVersion Include="KubeOps.Generator" Version="10.2.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
-    <PackageVersion Include="KubeOps.Operator" Version="10.2.3" />
+    <PackageVersion Include="KubeOps.Operator" Version="10.2.4" />
     <PackageVersion Include="KubernetesClient" Version="18.0.13" />
     
     <!-- xUnit v3 -->
