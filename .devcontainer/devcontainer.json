@@ -7,15 +7,11 @@
 		"dockerfile": "Dockerfile"
 	},
 	"privileged": true,
-	"features": {
-		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
-		"ghcr.io/audacioustux/devcontainers/k9s:1": {},
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {
-			"moby": false
-		},
-		"ghcr.io/devcontainers/features/azure-cli:1": {},
-		"ghcr.io/devcontainers/features/github-cli:1": {}
-	},
+	"overrideCommand": false,
+
+	// Features baked directly into the Dockerfile to avoid buildah
+	// bind-mount permission issues with rootless Podman.
+	// See: kubectl-helm, docker-in-docker, azure-cli, github-cli
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
