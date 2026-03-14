@@ -1,6 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
+# Fix gh credential helper path if it points to a non-existent binary
+# (VS Code copies the host's ~/.gitconfig which may reference a different gh location)
+GH_PATH="$(command -v gh 2>/dev/null || true)"
+if [ -n "$GH_PATH" ]; then
+    git config --global --get-all credential.https://github.com.helper 2>/dev/null \
+        | grep -q 'gh auth git-credential' && \
+        git config --global --replace-all credential.https://github.com.helper "!${GH_PATH} auth git-credential" || true
+    git config --global --get-all credential.https://gist.github.com.helper 2>/dev/null \
+        | grep -q 'gh auth git-credential' && \
+        git config --global --replace-all credential.https://gist.github.com.helper "!${GH_PATH} auth git-credential" || true
+fi
+
 # Install dotnet tools if not already installed
 dotnet tool restore
 
