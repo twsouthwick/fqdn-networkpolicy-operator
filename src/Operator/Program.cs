@@ -1,11 +1,11 @@
-﻿using KubeOps.Operator;
-
-var builder = Host.CreateApplicationBuilder(args);
+﻿var builder = Host.CreateApplicationBuilder(args);
 
 builder.Logging.SetMinimumLevel(LogLevel.Trace);
 
 builder.Services
     .AddHttpClient()
+    .AddTransient<EgressRuleResolver>()
+    .AddTransient<GlobalNetworkSetManager>()
     .AddKubernetesOperator(settings =>
     {
         settings.AutoAttachFinalizers = false;
