@@ -25,6 +25,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="KubeOps.Operator" />
+  <PackageReference Include="KubernetesClient" VersionOverride="19.0.2" />
   </ItemGroup>
 
 </Project>
