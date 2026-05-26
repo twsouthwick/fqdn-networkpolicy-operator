@@ -1,3 +1,4 @@
+using DnsClient;
 using k8s;
 using k8s.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using KubeOps.Operator;
 using Swick.FqdnNetworkPolicyOperator.Entities;
+using Swick.FqdnNetworkPolicyOperator.Services;
 
 namespace Swick.FqdnNetworkPolicyOperator.IntegrationTests;
 
@@ -35,7 +37,10 @@ public class OperatorFixture : IAsyncDisposable
         builder.Logging.AddConsole();
 
         builder.Services
+            .AddSingleton<ILookupClient>(_ => new LookupClient(new LookupClientOptions { UseCache = false }))
             .AddHttpClient()
+            .AddTransient<EgressRuleResolver>()
+            .AddTransient<GlobalNetworkSetManager>()
             .AddKubernetesOperator()
             .RegisterComponents();
 
