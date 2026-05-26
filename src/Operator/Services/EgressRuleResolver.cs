@@ -1,12 +1,14 @@
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using DnsClient;
+using DnsClient.Protocol;
 using k8s.Models;
 using Swick.FqdnNetworkPolicyOperator.Entities;
 
 namespace Swick.FqdnNetworkPolicyOperator;
 
-public class EgressRuleResolver(HttpClient httpClient, ILogger<EgressRuleResolver> logger)
+public class EgressRuleResolver(HttpClient httpClient, ILookupClient dnsClient, ILogger<EgressRuleResolver> logger)
 {
     public async IAsyncEnumerable<V1NetworkPolicyEgressRule> ResolveAsync(V1FqdnNetworkPolicyEntity entity, List<string> warnings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -83,16 +85,21 @@ public class EgressRuleResolver(HttpClient httpClient, ILogger<EgressRuleResolve
 
                 try
                 {
-                    addresses = await Dns.GetHostAddressesAsync(ipOrAddress, token);
+                    var result = await dnsClient.QueryAsync(ipOrAddress, QueryType.A, cancellationToken: token);
+                    var result6 = await dnsClient.QueryAsync(ipOrAddress, QueryType.AAAA, cancellationToken: token);
+                    
+                    addresses = result.Answers.ARecords().Select(r => r.Address)
+                        .Concat(result6.Answers.AaaaRecords().Select(r => r.Address))
+                        .ToArray();
                 }
                 catch (OperationCanceledException)
                 {
                     throw;
                 }
-                catch (System.Net.Sockets.SocketException ex) when ((uint)ex.ErrorCode == 0xFFFDFFFF)
+                catch (DnsResponseException ex)
                 {
                     warnings.Add($"Could not resolve '{ipOrAddress}'");
-                    logger.LogWarning("Could not resolve '{Fqdn}' from provider response", ipOrAddress);
+                    logger.LogWarning(ex, "Could not resolve '{Fqdn}' from provider response", ipOrAddress);
                 }
                 catch (Exception ex)
                 {
