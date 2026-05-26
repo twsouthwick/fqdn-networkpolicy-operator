@@ -1,4 +1,8 @@
 using System.Net;
+using k8s;
+using k8s.Autorest;
+using k8s.Models;
+using Swick.FqdnNetworkPolicyOperator.Entities;
 
 namespace Swick.FqdnNetworkPolicyOperator.Services;
 

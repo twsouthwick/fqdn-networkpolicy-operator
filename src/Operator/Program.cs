@@ -1,4 +1,8 @@
-﻿var builder = Host.CreateApplicationBuilder(args);
+﻿using KubeOps.Operator;
+using Swick.FqdnNetworkPolicyOperator;
+using Swick.FqdnNetworkPolicyOperator.Services;
+
+var builder = Host.CreateApplicationBuilder(args);
 
 builder.Logging.SetMinimumLevel(LogLevel.Trace);
 

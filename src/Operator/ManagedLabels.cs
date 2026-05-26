@@ -1,3 +1,6 @@
+using k8s.Models;
+using Swick.FqdnNetworkPolicyOperator.Entities;
+
 namespace Swick.FqdnNetworkPolicyOperator;
 
 internal static class ManagedLabels

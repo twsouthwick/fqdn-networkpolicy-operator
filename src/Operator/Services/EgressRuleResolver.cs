@@ -1,6 +1,8 @@
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using k8s.Models;
+using Swick.FqdnNetworkPolicyOperator.Entities;
 
 namespace Swick.FqdnNetworkPolicyOperator;
 
