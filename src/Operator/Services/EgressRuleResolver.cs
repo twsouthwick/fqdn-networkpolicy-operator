@@ -85,11 +85,12 @@ public class EgressRuleResolver(HttpClient httpClient, ILookupClient dnsClient, 
 
                 try
                 {
-                    var result = await dnsClient.QueryAsync(ipOrAddress, QueryType.A, cancellationToken: token);
-                    var result6 = await dnsClient.QueryAsync(ipOrAddress, QueryType.AAAA, cancellationToken: token);
-                    
-                    addresses = result.Answers.ARecords().Select(r => r.Address)
-                        .Concat(result6.Answers.AaaaRecords().Select(r => r.Address))
+                    var taskA = dnsClient.QueryAsync(ipOrAddress, QueryType.A, cancellationToken: token);
+                    var taskAAAA = dnsClient.QueryAsync(ipOrAddress, QueryType.AAAA, cancellationToken: token);
+                    await Task.WhenAll(taskA, taskAAAA);
+
+                    addresses = taskA.Result.Answers.ARecords().Select(r => r.Address)
+                        .Concat(taskAAAA.Result.Answers.AaaaRecords().Select(r => r.Address))
                         .ToArray();
                 }
                 catch (OperationCanceledException)
